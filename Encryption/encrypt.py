@@ -230,7 +230,7 @@ class Encryption_AES:
 
 def main():
     try:
-        bits = 512
+        bits = 2048
         generate_rsa = Generate_RSA(bits)
         public_key, private_key, n, num_bits = generate_rsa.get_values()
         rsa_cipher = Encryption_RSA(num_bits)
