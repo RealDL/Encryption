@@ -15,7 +15,7 @@ A simple asymmetric encryption program.
 
 # Notes
 1. The code has been designed to be a bullet proof encryption method.
-2. The encryption does work but it can break so be careful what you want encrypting. You can't encrypt over a certain number of characters.
+2. The encryption does work but it can break so be careful what you want encrypting. You can't encrypt over a certain number of characters. If you need to encrypt more data just increase the bits.
 3. Finally, if you need any help feel free to message me if you find any errors or you are struggling to set this up. My Discord is @realdl
 
 # Thank you. 🙏
