@@ -7,7 +7,7 @@ class Error(Exception):
     def __init__(self, message):
         super().__init__(logging.error(message))
 
-class RSA:
+class Generate_RSA:
     def __init__(self, num_bits):
         self.num_bits = num_bits
         self.p = self.generate_prime()
@@ -16,9 +16,7 @@ class RSA:
         self.phi_n = (self.p - 1) * (self.q - 1)
         self.e = self.generate_public_exponent()
         self.d = self.generate_private_exponent()
-        self.k0_hash = hashlib.sha256(b'0').digest()
-        self.k1_hash = hashlib.sha256(b'1').digest()
-
+        
     def is_prime(self, number, k=20):
         try:
             if number <= 1:
@@ -48,7 +46,7 @@ class RSA:
                     return False
             return True
         except Exception as e:
-            raise Error("Prime validation failed: " + str(e)) from e 
+            raise Error(f"Prime validation failed: {e}") from e 
 
     def generate_prime(self):
         try:
@@ -57,7 +55,7 @@ class RSA:
                 if self.is_prime(num):
                     return num
         except Exception as e:
-            raise Error("Prime generation failed: " + str(e)) from e 
+            raise Error(f"Prime generation failed: {e}") from e 
 
     def generate_public_exponent(self):
         try:
@@ -68,7 +66,7 @@ class RSA:
                 if self.gcd(e, self.phi_n) == 1:
                     return e 
         except Exception as e:
-            raise Error("Public exponent generation failed: " + str(e)) from e 
+            raise Error(f"Public exponent generation failed: {e}") from e 
 
     def gcd(self, a, b):
         try:
@@ -76,13 +74,22 @@ class RSA:
                 a, b = b, a % b
             return a 
         except Exception as e:
-            raise Error("GCD failed: " + str(e)) from e 
+            raise Error(f"GCD failed: {e}") from e 
 
     def generate_private_exponent(self):
         try:
             return pow(self.e, -1, self.phi_n)
         except Exception as e:
-            raise Error("Private exponent generation failed: " + str(e)) from e 
+            raise Error(f"Private exponent generation failed: {e}") from e 
+
+    def get_values(self):
+        return self.e, self.d, self.n, self.num_bits
+
+class Encryption_RSA:
+    def __init__(self, num_bits):
+        self.k0_hash = hashlib.sha256(b'0').digest()
+        self.k1_hash = hashlib.sha256(b'1').digest()
+        self.num_bits = num_bits
 
     def pad_oaep(self, message):
         try:
@@ -94,7 +101,7 @@ class RSA:
             masked_data_hashed = masked_data ^ int.from_bytes(self.k1_hash, byteorder='big')
             return masked_data_hashed
         except Exception as e:
-            raise Error("OAEP padding failed: " + str(e)) from e
+            raise Error(f"OAEP padding failed: {e}") from e
 
     def unpad_oaep(self, padded_message):
         try:
@@ -108,90 +115,184 @@ class RSA:
             message = message_int.to_bytes(message_length, byteorder='big')
             return message
         except Exception as e:
-            raise Error("UN-OAEP padding failed: " + str(e)) from e
+            raise Error(f"UN-OAEP padding failed: {e}") from e
         
-    def encrypt(self, message, public_key):
+    def encrypt(self, message, public_key, n):
         try:
             message_bytes = self.serialise(message)
             padded_message = self.pad_oaep(message_bytes)
-            cipher_message_int = pow(padded_message, public_key, self.n)
+            cipher_message_int = pow(padded_message, public_key, n)
             cipher_message_bytes = self.serialise(cipher_message_int)
             return cipher_message_bytes
         except Exception as e:
-            raise Error("Encryption failed: " + str(e)) from e 
+            raise Error(f"Encryption failed: {e}") from e 
 
-    def decrypt(self, cipher_message_bytes, private_key):
+    def decrypt(self, cipher_message_bytes, private_key, n):
         try:
             cipher_message_int = self.unserialise(cipher_message_bytes)
-            padded_message = pow(cipher_message_int, private_key, self.n)
+            padded_message = pow(cipher_message_int, private_key, n)
             message_bytes = self.unpad_oaep(padded_message)
             message = self.unserialise(message_bytes)
             return message
         except Exception as e:
-            raise Error("Decryption failed: " + str(e)) from e 
+            raise Error(f"Decryption failed: {e}") from e 
 
     def serialise(self, data):
         try:
             return pickle.dumps(data) 
         except Exception as e:
-            raise Error("Serialisation failed: " + str(e)) from e 
+            raise Error(f"Serialisation failed: {e}") from e 
 
     def unserialise(self, data):
         try:
             return pickle.loads(data)
         except Exception as e:
-            raise Error("Unserialisation failed: " + str(e)) from e 
+            raise Error(f"Unserialisation failed: {e}") from e 
+      
+class Generate_AES:
+    def __init__(self, bits=2048):
+        self.bits = bits
+        self.key = self.generate_key()
 
-class RSACipher:
-    def __init__(self,num_bits=512):
-        self.rsa = RSA(num_bits) 
+    def generate_key(self):
+        try:
+            return secrets.token_bytes(self.bits)
+        except Exception as e:
+            raise Error(f"Key generation failed: {e}") from e 
 
-    def encrypt(self, plaintext, public_key):
-        try:
-            return self.rsa.encrypt(plaintext, public_key)
-        except Exception as e:
-            raise Error("Failed to return encrypted message: " + str(e)) from e 
+class Encryption_AES:
+    def __init__(self, key):
+        self.key = key
 
-    def decrypt(self, ciphertext_bytes, private_key):
+    def pad(self, data):
         try:
-            return self.rsa.decrypt(ciphertext_bytes, private_key) 
+            # Add PKCS7 padding
+            padding_length = 16 - len(data) % 16
+            padding = bytes([padding_length] * padding_length)
+            return data + padding
         except Exception as e:
-            raise Error("Failed to return decrypted message: " + str(e)) from e 
-        
-    def get_public_key(self):
+            raise Error(f"Padding failed: {e}") from e 
+
+    def unpad(self, data):
         try:
-            return self.rsa.e 
+            # Remove PKCS7 padding
+            padding_length = data[-1]
+            if padding_length < 1 or padding_length > 16:
+                raise ValueError("Invalid padding")
+            return data[:-padding_length]
         except Exception as e:
-            raise Error("Failed to return public key: " + str(e)) from e 
-        
-    def get_private_key(self):
+            raise Error(f"Unpadding failed: {e}") from e 
+
+    def xor_encrypt(self, data, key):
         try:
-            return self.rsa.d 
+            encrypted_data = bytearray()
+            for i in range(len(data)):
+                encrypted_byte = data[i] ^ key[i % len(key)]
+                encrypted_data.append(encrypted_byte)
+            return bytes(encrypted_data)
         except Exception as e:
-            raise Error("Failed to return private key: " + str(e)) from e 
+            raise Error(f"XOR encryption failed: {e}") from e 
+
+    def xor_decrypt(self, data, key):
+        try:
+            return self.xor_encrypt(data, key)  # XOR decryption is the same as encryption
+        except Exception as e:
+            raise Error(f"XOR decryption failed: {e}") from e 
+
+    def encrypt(self, data):
+        try:
+            serialized_data = self.serialise(data)
+            padded_data = self.pad(serialized_data)
+            encrypted_data = self.xor_encrypt(padded_data, self.key)
+            return encrypted_data
+        except Exception as e:
+            raise Error(f"Encryption failed: {e}") from e 
+
+    def decrypt(self, encrypted_data):
+        try:
+            padded_data = self.xor_decrypt(encrypted_data, self.key)
+            deserialized_data = self.unserialise(self.unpad(padded_data))
+            return deserialized_data
+        except Exception as e:
+            raise Error(f"Decryption failed: {e}") from e 
+    
+    def serialise(self, data):
+        try:
+            return pickle.dumps(data) 
+        except Exception as e:
+            raise Error(f"Serialisation failed: {e}") from e 
+
+    def unserialise(self, data):
+        try:
+            return pickle.loads(data)
+        except Exception as e:
+            raise Error(f"Unserialisation failed: {e}") from e 
 
 def main():
     try:
-        rsa_cipher = RSACipher(1024)
-        public_key = rsa_cipher.get_public_key()
-        private_key = rsa_cipher.get_private_key()
+        bits = 512
+        generate_rsa = Generate_RSA(bits)
+        public_key, private_key, n, num_bits = generate_rsa.get_values()
+        rsa_cipher = Encryption_RSA(num_bits)
         logging.info(f"public_key: {public_key}")
         logging.info(f"private_key: {private_key}")
+        logging.info(f"n: {n}")
+        logging.info(f"num_bits: {num_bits}")
 
-       
-        message = "Hello World"
+        message = "Hello World."
 
-        encrypted_message = rsa_cipher.encrypt(message, public_key)
-        decrypted_message = rsa_cipher.decrypt(encrypted_message, private_key) 
+        encrypted_message = rsa_cipher.encrypt(message, public_key, n)
+        decrypted_message = rsa_cipher.decrypt(encrypted_message, private_key, n) 
 
         logging.info(f"Original Message: {message}")
         logging.info(f"Encrypted Message: {encrypted_message}")
-        logging.info(f"Decrypted Message: {decrypted_message}\n\n")
-
-            
+        logging.info(f"Decrypted Message: {decrypted_message}\n\n")  
 
     except Exception as e:
-        raise Error("Error main loop failed: " + str(e)) from e 
+        raise Error(f"Error main loop failed: {e}") from e 
+
+def main2():
+    try:
+        bits = 2048
+        encryption_key = Generate_AES(bits)
+        key = encryption_key.key
+        encryption = Encryption_AES(key)
+        
+
+        # Example data types
+        data_string = "Hello, this is a secret message!"
+        data_dict = {"name": "Alice", "age": 30}
+        data_list = [1, 2, 3, 4, 5]
+        data_int = 42
+        
+        encrypted_string = encryption.encrypt(data_string)
+        encrypted_dict = encryption.encrypt(data_dict)
+        encrypted_list = encryption.encrypt(data_list)
+        encrypted_int = encryption.encrypt(data_int)
+        
+        decrypted_string = encryption.decrypt(encrypted_string)
+        decrypted_dict = encryption.decrypt(encrypted_dict)
+        decrypted_list = encryption.decrypt(encrypted_list)
+        decrypted_int = encryption.decrypt(encrypted_int)
+        logging.info(f"key: {encryption.key}\n\n")
+
+        logging.info(f"Original String: {data_string}")
+        logging.info(f"Encrypted String: {encrypted_string}")
+        logging.info(f"Decrypted String: {decrypted_string}\n\n")
+        
+        logging.info(f"Original Dictionary: {data_dict}")
+        logging.info(f"Encrypted String: {encrypted_dict}")
+        logging.info(f"Decrypted Dictionary: {decrypted_dict}\n\n")
+        
+        logging.info(f"Original List: {data_list}")
+        logging.info(f"Encrypted String: {encrypted_list}")
+        logging.info(f"Decrypted List: {decrypted_list}\n\n")
+        
+        logging.info(f"Original Integer: {data_int}")
+        logging.info(f"Encrypted String: {encrypted_int}")
+        logging.info(f"Decrypted Integer: {decrypted_int}\n\n")
+    except Exception as e:
+        raise Error(f"Error main loop failed: {e}") from e 
 
 if __name__ == "__main__":
-    main()
+    main2()
